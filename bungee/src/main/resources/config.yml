@@ -436,6 +436,32 @@ apply-bungee-config-permissions: false
 # | Extra settings                                                                               | #
 # +----------------------------------------------------------------------------------------------+ #
 
+# Toggle on/off rank messages.
+allow-group-change-messages: true
+
+#Customize the Messages that get sent on group change:
+  #/lp user {name} promote
+promotion: "&8(&a!&8) &2You have been promoted from {old} &2to {new}&2."
+  #/lp user {name} demote
+promotion: "&8(&4!&8) &cYou have been demoted from {old} &cto {new}&2."
+  #/lp user {name} parent add
+parent-add: "&8(&a!&8) &2You have been granted {new} &2Rank."
+  #/lp user {name} parent addtemp
+parent-addtemp: "&8(&a!&8) &2You have been granted {new} &2Rank for {time}&2."
+  #/lp user {name} parent remove
+parent-remove: "&8(&4!&8) {old} &cRank has been revoked."
+  #/lp user {name} parent removetemp
+parent-removetemp: "&8(&4!&8) {old} &cRank has been revoked for {time}&c."
+  #/lp user {name} parent set
+parent-set: "&8(&a!&8) &2Your rank has been set to {new}&2."
+
+#Groups that should be notified of a group change.
+groups:
+  - "Owner"
+  - "Mod"
+  - "Helper"
+  - "VIP"
+
 # Allows you to set "aliases" for the worlds sent forward for context calculation.
 #
 # - These aliases are provided in addition to the real world name. Applied recursively.
