@@ -50,7 +50,7 @@ import me.lucko.luckperms.common.sender.Sender;
 import me.lucko.luckperms.common.storage.Storage;
 import me.lucko.luckperms.common.storage.StorageFactory;
 import me.lucko.luckperms.common.storage.StorageType;
-import me.lucko.luckperms.common.storage.implementation.file.FileWatcher;
+import me.lucko.luckperms.common.storage.implementation.file.watcher.FileWatcher;
 import me.lucko.luckperms.common.tasks.SyncTask;
 import me.lucko.luckperms.common.treeview.PermissionRegistry;
 import me.lucko.luckperms.common.verbose.VerboseHandler;
@@ -189,7 +189,7 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
         // run an update instantly.
         getLogger().info("Performing initial data load...");
         try {
-            new SyncTask(this, true).run();
+            new SyncTask(this).run();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -205,6 +205,11 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
     }
 
     public final void disable() {
+        getLogger().info("Starting shutdown process...");
+
+        // cancel delayed/repeating tasks
+        getBootstrap().getScheduler().shutdownScheduler();
+
         // shutdown permission vault and verbose handler tasks
         this.permissionRegistry.close();
         this.verboseHandler.close();
@@ -233,9 +238,8 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
         // unregister api
         ApiRegistrationUtil.unregisterProvider();
 
-        // shutdown scheduler
-        getLogger().info("Shutting down internal scheduler...");
-        getBootstrap().getScheduler().shutdown();
+        // shutdown async executor pool
+        getBootstrap().getScheduler().shutdownExecutor();
 
         getLogger().info("Goodbye!");
     }
