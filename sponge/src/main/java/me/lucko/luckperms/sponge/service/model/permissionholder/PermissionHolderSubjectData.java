@@ -38,6 +38,7 @@ import me.lucko.luckperms.common.node.types.Inheritance;
 import me.lucko.luckperms.common.node.types.Meta;
 import me.lucko.luckperms.common.node.types.Prefix;
 import me.lucko.luckperms.common.node.types.Suffix;
+import me.lucko.luckperms.common.query.QueryOptionsImpl;
 import me.lucko.luckperms.sponge.service.LuckPermsService;
 import me.lucko.luckperms.sponge.service.ProxyFactory;
 import me.lucko.luckperms.sponge.service.model.LPSubject;
@@ -53,7 +54,6 @@ import net.luckperms.api.node.types.InheritanceNode;
 import net.luckperms.api.node.types.MetaNode;
 import net.luckperms.api.node.types.PrefixNode;
 import net.luckperms.api.node.types.SuffixNode;
-import net.luckperms.api.query.QueryOptions;
 import net.luckperms.api.util.Tristate;
 
 import org.spongepowered.api.service.permission.PermissionService;
@@ -98,7 +98,7 @@ public class PermissionHolderSubjectData implements LPSubjectData {
     @Override
     public ImmutableMap<ImmutableContextSet, ImmutableMap<String, Boolean>> getAllPermissions() {
         ImmutableMap.Builder<ImmutableContextSet, ImmutableMap<String, Boolean>> permissions = ImmutableMap.builder();
-        for (Map.Entry<ImmutableContextSet, ? extends Collection<? extends Node>> entry : this.holder.getData(this.type).immutable().asMap().entrySet()) {
+        for (Map.Entry<ImmutableContextSet, Collection<Node>> entry : this.holder.getData(this.type).asMap().entrySet()) {
             ImmutableMap.Builder<String, Boolean> builder = ImmutableMap.builder();
             for (Node n : entry.getValue()) {
                 builder.put(n.getKey(), n.getValue());
@@ -111,7 +111,7 @@ public class PermissionHolderSubjectData implements LPSubjectData {
     @Override
     public ImmutableMap<String, Boolean> getPermissions(ImmutableContextSet contexts) {
         ImmutableMap.Builder<String, Boolean> builder = ImmutableMap.builder();
-        for (Node n : this.holder.getData(this.type).immutable().get(contexts)) {
+        for (Node n : this.holder.getData(this.type).nodesInContext(contexts)) {
             builder.put(n.getKey(), n.getValue());
         }
         return builder.build();
@@ -159,7 +159,7 @@ public class PermissionHolderSubjectData implements LPSubjectData {
     @Override
     public ImmutableMap<ImmutableContextSet, ImmutableList<LPSubjectReference>> getAllParents() {
         ImmutableMap.Builder<ImmutableContextSet, ImmutableList<LPSubjectReference>> parents = ImmutableMap.builder();
-        for (Map.Entry<ImmutableContextSet, ? extends Collection<? extends InheritanceNode>> entry : this.holder.getData(this.type).immutableInheritance().asMap().entrySet()) {
+        for (Map.Entry<ImmutableContextSet, Collection<InheritanceNode>> entry : this.holder.getData(this.type).inheritanceAsMap().entrySet()) {
             ImmutableList.Builder<LPSubjectReference> builder = ImmutableList.builder();
             for (InheritanceNode n : entry.getValue()) {
                 builder.add(this.service.getGroupSubjects().loadSubject(n.getGroupName()).join().toReference());
@@ -172,7 +172,7 @@ public class PermissionHolderSubjectData implements LPSubjectData {
     @Override
     public ImmutableList<LPSubjectReference> getParents(ImmutableContextSet contexts) {
         ImmutableList.Builder<LPSubjectReference> builder = ImmutableList.builder();
-        for (InheritanceNode n : this.holder.getData(this.type).immutableInheritance().get(contexts)) {
+        for (InheritanceNode n : this.holder.getData(this.type).inheritanceNodesInContext(contexts)) {
             builder.add(this.service.getGroupSubjects().loadSubject(n.getGroupName()).join().toReference());
         }
         return builder.build();
@@ -241,7 +241,7 @@ public class PermissionHolderSubjectData implements LPSubjectData {
     @Override
     public ImmutableMap<ImmutableContextSet, ImmutableMap<String, String>> getAllOptions() {
         ImmutableMap.Builder<ImmutableContextSet, ImmutableMap<String, String>> options = ImmutableMap.builder();
-        for (Map.Entry<ImmutableContextSet, ? extends Collection<? extends Node>> entry : this.holder.getData(this.type).immutable().asMap().entrySet()) {
+        for (Map.Entry<ImmutableContextSet, Collection<Node>> entry : this.holder.getData(this.type).asMap().entrySet()) {
             options.put(entry.getKey(), nodesToOptions(entry.getValue()));
         }
         return options.build();
@@ -249,7 +249,7 @@ public class PermissionHolderSubjectData implements LPSubjectData {
 
     @Override
     public ImmutableMap<String, String> getOptions(ImmutableContextSet contexts) {
-        return nodesToOptions(this.holder.getData(this.type).immutable().get(contexts));
+        return nodesToOptions(this.holder.getData(this.type).nodesInContext(contexts));
     }
 
     private static ImmutableMap<String, String> nodesToOptions(Iterable<? extends Node> nodes) {
@@ -302,8 +302,7 @@ public class PermissionHolderSubjectData implements LPSubjectData {
             // remove all prefixes/suffixes from the user
             this.holder.removeIf(this.type, contexts, type.nodeType()::matches, false);
 
-            MetaAccumulator metaAccumulator = this.holder.accumulateMeta(null, QueryOptions.defaultContextualOptions().toBuilder().context(contexts).build());
-            metaAccumulator.complete();
+            MetaAccumulator metaAccumulator = this.holder.accumulateMeta(QueryOptionsImpl.DEFAULT_CONTEXTUAL.toBuilder().context(contexts).build());
             int priority = metaAccumulator.getChatMeta(type).keySet().stream().mapToInt(e -> e).max().orElse(0);
             priority += 10;
 

@@ -70,7 +70,7 @@ public abstract class AbstractFileWatcher implements AutoCloseable {
     private final boolean autoRegisterNewSubDirectories;
 
     /** The thread currently being used to wait for & process watch events */
-    private AtomicReference<Thread> processingThread = new AtomicReference<>();
+    private final AtomicReference<Thread> processingThread = new AtomicReference<>();
 
     public AbstractFileWatcher(FileSystem fileSystem, boolean autoRegisterNewSubDirectories) throws IOException {
         this.service = fileSystem.newWatchService();
@@ -126,10 +126,7 @@ public abstract class AbstractFileWatcher implements AutoCloseable {
             WatchKey key;
             try {
                 key = this.service.take();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-                break;
-            } catch (ClosedWatchServiceException e) {
+            } catch (InterruptedException | ClosedWatchServiceException e) {
                 break;
             }
 

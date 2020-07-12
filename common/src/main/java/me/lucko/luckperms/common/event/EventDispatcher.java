@@ -29,10 +29,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import me.lucko.luckperms.common.api.implementation.ApiPermissionHolder;
-import me.lucko.luckperms.common.api.implementation.ApiUser;
 import me.lucko.luckperms.common.cacheddata.GroupCachedDataManager;
 import me.lucko.luckperms.common.cacheddata.UserCachedDataManager;
-import me.lucko.luckperms.common.event.gen.GeneratedEventSpec;
+import me.lucko.luckperms.common.event.gen.GeneratedEventClass;
 import me.lucko.luckperms.common.event.model.EntitySourceImpl;
 import me.lucko.luckperms.common.event.model.SenderPlatformEntity;
 import me.lucko.luckperms.common.event.model.UnknownSource;
@@ -47,6 +46,7 @@ import net.luckperms.api.actionlog.Action;
 import net.luckperms.api.event.LuckPermsEvent;
 import net.luckperms.api.event.cause.CreationCause;
 import net.luckperms.api.event.cause.DeletionCause;
+import net.luckperms.api.event.context.ContextUpdateEvent;
 import net.luckperms.api.event.extension.ExtensionLoadEvent;
 import net.luckperms.api.event.group.GroupCacheLoadEvent;
 import net.luckperms.api.event.group.GroupCreateEvent;
@@ -132,7 +132,19 @@ public final class EventDispatcher {
     
     @SuppressWarnings("unchecked")
     private <T extends LuckPermsEvent> T generate(Class<T> eventClass, Object... params) {
-        return (T) GeneratedEventSpec.lookup(eventClass).newInstance(this.eventBus.getApiProvider(), params);
+        try {
+            return (T) GeneratedEventClass.generate(eventClass).newInstance(this.eventBus.getApiProvider(), params);
+        } catch (Throwable e) {
+            throw new RuntimeException("Exception occurred whilst generating event instance", e);
+        }
+    }
+
+    public void dispatchContextUpdate(Object subject) {
+        if (!shouldPost(ContextUpdateEvent.class)) {
+            return;
+        }
+
+        post(generate(ContextUpdateEvent.class, subject));
     }
 
     public void dispatchExtensionLoad(Extension extension) {
@@ -140,15 +152,15 @@ public final class EventDispatcher {
     }
 
     public void dispatchGroupCacheLoad(Group group, GroupCachedDataManager data) {
-        post(GroupCacheLoadEvent.class, () -> generate(GroupCacheLoadEvent.class, group.getApiDelegate(), data));
+        post(GroupCacheLoadEvent.class, () -> generate(GroupCacheLoadEvent.class, group.getApiProxy(), data));
     }
 
     public void dispatchGroupCreate(Group group, CreationCause cause) {
-        post(GroupCreateEvent.class, () -> generate(GroupCreateEvent.class, group.getApiDelegate(), cause));
+        post(GroupCreateEvent.class, () -> generate(GroupCreateEvent.class, group.getApiProxy(), cause));
     }
 
     public void dispatchGroupDelete(Group group, DeletionCause cause) {
-        post(GroupDeleteEvent.class, () -> generate(GroupDeleteEvent.class, group.getName(), ImmutableSet.copyOf(group.normalData().immutable().values()), cause));
+        post(GroupDeleteEvent.class, () -> generate(GroupDeleteEvent.class, group.getName(), ImmutableSet.copyOf(group.normalData().asSet()), cause));
     }
 
     public void dispatchGroupLoadAll() {
@@ -156,7 +168,7 @@ public final class EventDispatcher {
     }
 
     public void dispatchGroupLoad(Group group) {
-        post(GroupLoadEvent.class, () -> generate(GroupLoadEvent.class, group.getApiDelegate()));
+        post(GroupLoadEvent.class, () -> generate(GroupLoadEvent.class, group.getApiProxy()));
     }
 
     public boolean dispatchLogBroadcast(boolean initialState, Action entry, LogBroadcastEvent.Origin origin) {
@@ -204,15 +216,15 @@ public final class EventDispatcher {
     }
 
     public void dispatchNodeAdd(Node node, PermissionHolder target, DataType dataType, Collection<? extends Node> before, Collection<? extends Node> after) {
-        post(NodeAddEvent.class, () -> generate(NodeAddEvent.class, getDelegate(target), dataType, ImmutableSet.copyOf(before), ImmutableSet.copyOf(after), node));
+        post(NodeAddEvent.class, () -> generate(NodeAddEvent.class, proxy(target), dataType, ImmutableSet.copyOf(before), ImmutableSet.copyOf(after), node));
     }
 
     public void dispatchNodeClear(PermissionHolder target, DataType dataType, Collection<? extends Node> before, Collection<? extends Node> after) {
-        post(NodeClearEvent.class, () -> generate(NodeClearEvent.class, getDelegate(target), dataType, ImmutableSet.copyOf(before), ImmutableSet.copyOf(after)));
+        post(NodeClearEvent.class, () -> generate(NodeClearEvent.class, proxy(target), dataType, ImmutableSet.copyOf(before), ImmutableSet.copyOf(after)));
     }
 
     public void dispatchNodeRemove(Node node, PermissionHolder target, DataType dataType, Collection<? extends Node> before, Collection<? extends Node> after) {
-        post(NodeRemoveEvent.class, () -> generate(NodeRemoveEvent.class, getDelegate(target), dataType, ImmutableSet.copyOf(before), ImmutableSet.copyOf(after), node));
+        post(NodeRemoveEvent.class, () -> generate(NodeRemoveEvent.class, proxy(target), dataType, ImmutableSet.copyOf(before), ImmutableSet.copyOf(after), node));
     }
 
     public void dispatchConfigReload() {
@@ -244,7 +256,7 @@ public final class EventDispatcher {
     }
 
     public void dispatchTrackCreate(Track track, CreationCause cause) {
-        post(TrackCreateEvent.class, () -> generate(TrackCreateEvent.class, track.getApiDelegate(), cause));
+        post(TrackCreateEvent.class, () -> generate(TrackCreateEvent.class, track.getApiProxy(), cause));
     }
 
     public void dispatchTrackDelete(Track track, DeletionCause cause) {
@@ -256,32 +268,32 @@ public final class EventDispatcher {
     }
 
     public void dispatchTrackLoad(Track track) {
-        post(TrackLoadEvent.class, () -> generate(TrackLoadEvent.class, track.getApiDelegate()));
+        post(TrackLoadEvent.class, () -> generate(TrackLoadEvent.class, track.getApiProxy()));
     }
 
     public void dispatchTrackAddGroup(Track track, String group, List<String> before, List<String> after) {
-        post(TrackAddGroupEvent.class, () -> generate(TrackAddGroupEvent.class, track.getApiDelegate(), ImmutableList.copyOf(before), ImmutableList.copyOf(after), group));
+        post(TrackAddGroupEvent.class, () -> generate(TrackAddGroupEvent.class, track.getApiProxy(), ImmutableList.copyOf(before), ImmutableList.copyOf(after), group));
     }
 
     public void dispatchTrackClear(Track track, List<String> before) {
-        post(TrackClearEvent.class, () -> generate(TrackClearEvent.class, track.getApiDelegate(), ImmutableList.copyOf(before), ImmutableList.of()));
+        post(TrackClearEvent.class, () -> generate(TrackClearEvent.class, track.getApiProxy(), ImmutableList.copyOf(before), ImmutableList.of()));
     }
 
     public void dispatchTrackRemoveGroup(Track track, String group, List<String> before, List<String> after) {
-        post(TrackRemoveGroupEvent.class, () -> generate(TrackRemoveGroupEvent.class, track.getApiDelegate(), ImmutableList.copyOf(before), ImmutableList.copyOf(after), group));
+        post(TrackRemoveGroupEvent.class, () -> generate(TrackRemoveGroupEvent.class, track.getApiProxy(), ImmutableList.copyOf(before), ImmutableList.copyOf(after), group));
     }
 
     public void dispatchUserCacheLoad(User user, UserCachedDataManager data) {
-        post(UserCacheLoadEvent.class, () -> generate(UserCacheLoadEvent.class, new ApiUser(user), data));
+        post(UserCacheLoadEvent.class, () -> generate(UserCacheLoadEvent.class, user.getApiProxy(), data));
     }
 
     public void dispatchDataRecalculate(PermissionHolder holder) {
         if (holder.getType() == HolderType.USER) {
             User user = (User) holder;
-            post(UserDataRecalculateEvent.class, () -> generate(UserDataRecalculateEvent.class, user.getApiDelegate(), user.getCachedData()));
+            post(UserDataRecalculateEvent.class, () -> generate(UserDataRecalculateEvent.class, user.getApiProxy(), user.getCachedData()));
         } else {
             Group group = (Group) holder;
-            post(GroupDataRecalculateEvent.class, () -> generate(GroupDataRecalculateEvent.class, group.getApiDelegate(), group.getCachedData()));
+            post(GroupDataRecalculateEvent.class, () -> generate(GroupDataRecalculateEvent.class, group.getApiProxy(), group.getCachedData()));
         }
     }
 
@@ -294,7 +306,7 @@ public final class EventDispatcher {
             return;
         }
 
-        post(generate(PlayerLoginProcessEvent.class, uniqueId, username, new ApiUser(user)));
+        post(generate(PlayerLoginProcessEvent.class, uniqueId, username, user.getApiProxy()));
     }
 
     public void dispatchPlayerDataSave(UUID uniqueId, String username, PlayerSaveResult result) {
@@ -302,28 +314,28 @@ public final class EventDispatcher {
     }
 
     public void dispatchUserLoad(User user) {
-        post(UserLoadEvent.class, () -> generate(UserLoadEvent.class, new ApiUser(user)));
+        post(UserLoadEvent.class, () -> generate(UserLoadEvent.class, user.getApiProxy()));
     }
 
     public void dispatchUserDemote(User user, Track track, String from, String to, @Nullable Sender source) {
         post(UserDemoteEvent.class, () -> {
             Source s = source == null ? UnknownSource.INSTANCE : new EntitySourceImpl(new SenderPlatformEntity(source));
-            return generate(UserDemoteEvent.class, s, track.getApiDelegate(), new ApiUser(user), Optional.ofNullable(from), Optional.ofNullable(to));
+            return generate(UserDemoteEvent.class, s, track.getApiProxy(), user.getApiProxy(), Optional.ofNullable(from), Optional.ofNullable(to));
         });
     }
 
     public void dispatchUserPromote(User user, Track track, String from, String to, @Nullable Sender source) {
         post(UserPromoteEvent.class, () -> {
             Source s = source == null ? UnknownSource.INSTANCE : new EntitySourceImpl(new SenderPlatformEntity(source));
-            return generate(UserPromoteEvent.class, s, track.getApiDelegate(), new ApiUser(user), Optional.ofNullable(from), Optional.ofNullable(to));
+            return generate(UserPromoteEvent.class, s, track.getApiProxy(), user.getApiProxy(), Optional.ofNullable(from), Optional.ofNullable(to));
         });
     }
 
-    private static ApiPermissionHolder getDelegate(PermissionHolder holder) {
+    private static ApiPermissionHolder proxy(PermissionHolder holder) {
         if (holder instanceof Group) {
-            return ((Group) holder).getApiDelegate();
+            return ((Group) holder).getApiProxy();
         } else if (holder instanceof User) {
-            return new ApiUser(((User) holder));
+            return ((User) holder).getApiProxy();
         } else {
             throw new AssertionError();
         }

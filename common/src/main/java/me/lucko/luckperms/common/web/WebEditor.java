@@ -73,7 +73,7 @@ public final class WebEditor {
                 .add("type", holder.getType().toString())
                 .add("id", holder.getObjectName())
                 .add("displayName", holder.getPlainDisplayName())
-                .add("nodes", NodeJsonSerializer.serializeNodes(holder.normalData().immutable().values()));
+                .add("nodes", NodeJsonSerializer.serializeNodes(holder.normalData().asList()));
     }
 
     private static JObject writeData(Track track) {
@@ -136,8 +136,12 @@ public final class WebEditor {
         String pasteId;
         try {
             pasteId = plugin.getBytebin().postContent(bytesOut.toByteArray(), AbstractHttpClient.JSON_TYPE, false).key();
+        } catch (UnsuccessfulRequestException e) {
+            Message.EDITOR_HTTP_REQUEST_FAILURE.send(sender, e.getResponse().code(), e.getResponse().message());
+            return CommandResult.STATE_ERROR;
         } catch (IOException e) {
-            Message.EDITOR_UPLOAD_FAILURE.send(sender);
+            new RuntimeException("Error uploading data to bytebin", e).printStackTrace();
+            Message.EDITOR_HTTP_UNKNOWN_FAILURE.send(sender);
             return CommandResult.STATE_ERROR;
         }
 
@@ -155,7 +159,7 @@ public final class WebEditor {
         return CommandResult.SUCCESS;
     }
 
-    public static JsonObject readDataFromBytebin(BytebinClient bytebin, String id) {
+    public static JsonObject readDataFromBytebin(BytebinClient bytebin, String id) throws IOException, UnsuccessfulRequestException {
         Request request = new Request.Builder()
                 .header("User-Agent", bytebin.getUserAgent())
                 .url(bytebin.getUrl() + id)
@@ -173,8 +177,6 @@ public final class WebEditor {
                     }
                 }
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 

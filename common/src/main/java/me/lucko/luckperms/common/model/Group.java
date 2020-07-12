@@ -41,7 +41,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 
 public class Group extends PermissionHolder {
-    private final ApiGroup apiDelegate = new ApiGroup(this);
+    private final ApiGroup apiProxy = new ApiGroup(this);
 
     /**
      * The name of the group
@@ -90,8 +90,13 @@ public class Group extends PermissionHolder {
         return this.name;
     }
 
-    public ApiGroup getApiDelegate() {
-        return this.apiDelegate;
+    public ApiGroup getApiProxy() {
+        return this.apiProxy;
+    }
+
+    @Override
+    public QueryOptions getQueryOptions() {
+        return getPlugin().getContextManager().getStaticQueryOptions();
     }
 
     @Override
@@ -101,8 +106,7 @@ public class Group extends PermissionHolder {
 
     @Override
     public String getFormattedDisplayName() {
-        Optional<String> dn = getDisplayName();
-        return dn.map(s -> this.name + " &r(" + s + "&r)").orElse(this.name);
+        return getDisplayName().map(s -> this.name + " &r(" + s + "&r)").orElse(this.name);
     }
 
     @Override

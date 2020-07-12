@@ -26,6 +26,7 @@
 package net.luckperms.api.query;
 
 import net.luckperms.api.LuckPermsProvider;
+import net.luckperms.api.context.ContextSatisfyMode;
 import net.luckperms.api.context.ContextSet;
 import net.luckperms.api.context.ImmutableContextSet;
 
@@ -94,7 +95,7 @@ public interface QueryOptions {
      * @return the default non contextual query options
      */
     static @NonNull QueryOptions nonContextual() {
-        return DefaultQueryOptions.nonContextual();
+        return LuckPermsProvider.get().getQueryOptionsRegistry().defaultNonContextualOptions();
     }
 
     /**
@@ -107,7 +108,7 @@ public interface QueryOptions {
      * @return the default contextual query options
      */
     static @NonNull QueryOptions defaultContextualOptions() {
-        return DefaultQueryOptions.contextual();
+        return LuckPermsProvider.get().getQueryOptionsRegistry().defaultContextualOptions();
     }
 
     /**
@@ -166,10 +167,29 @@ public interface QueryOptions {
      * Gets whether this {@link QueryOptions} satisfies the given required
      * {@link ContextSet context}.
      *
+     * <p>{@link ContextSatisfyMode#AT_LEAST_ONE_VALUE_PER_KEY} is used if this {@link QueryOptions}
+     * instance doesn't have the {@link ContextSatisfyMode#KEY option key} set.</p>
+     *
      * @param contextSet the contexts
      * @return the result
      */
-    boolean satisfies(@NonNull ContextSet contextSet);
+    default boolean satisfies(@NonNull ContextSet contextSet) {
+        return satisfies(contextSet, ContextSatisfyMode.AT_LEAST_ONE_VALUE_PER_KEY);
+    }
+
+    /**
+     * Gets whether this {@link QueryOptions} satisfies the given required
+     * {@link ContextSet context}.
+     *
+     * <p>The {@code defaultContextSatisfyMode} parameter is used if this {@link QueryOptions}
+     * instance doesn't have the {@link ContextSatisfyMode#KEY option key} set.</p>
+     *
+     * @param contextSet the contexts
+     * @param defaultContextSatisfyMode the default context satisfy mode to use
+     * @return the result
+     * @since 5.2
+     */
+    boolean satisfies(@NonNull ContextSet contextSet, @NonNull ContextSatisfyMode defaultContextSatisfyMode);
 
     /**
      * Converts this {@link QueryOptions} to a mutable builder.

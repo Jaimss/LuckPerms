@@ -39,8 +39,11 @@ import net.luckperms.api.model.group.GroupManager;
 import net.luckperms.api.model.user.User;
 import net.luckperms.api.model.user.UserManager;
 import net.luckperms.api.node.NodeBuilderRegistry;
+import net.luckperms.api.node.matcher.NodeMatcherFactory;
 import net.luckperms.api.platform.Platform;
+import net.luckperms.api.platform.PlayerAdapter;
 import net.luckperms.api.platform.PluginMetadata;
+import net.luckperms.api.query.QueryOptionsRegistry;
 import net.luckperms.api.track.Track;
 import net.luckperms.api.track.TrackManager;
 
@@ -115,6 +118,32 @@ public interface LuckPerms {
     @NonNull TrackManager getTrackManager();
 
     /**
+     * Gets the {@link PlayerAdapter} instance, a utility class for adapting platform Player
+     * instances to {@link User}s.
+     *
+     * <p>The {@code playerClass} parameter must be equal to the class or interface used by the
+     * server platform to represent players.</p>
+     *
+     * <p>Specifically:</p>
+     *
+     * <p></p>
+     * <ul>
+     * <li>{@code org.bukkit.entity.Player}</li>
+     * <li>{@code net.md_5.bungee.api.connection.ProxiedPlayer}</li>
+     * <li>{@code org.spongepowered.api/entity.living.player.Player}</li>
+     * <li>{@code cn.nukkit.Player}</li>
+     * <li>{@code com.velocitypowered.api.proxy.Player}</li>
+     * </ul>
+     *
+     * @param playerClass the class used by the platform to represent players
+     * @param <T> the player class type
+     * @return the player adapter
+     * @throws IllegalArgumentException if the player class is not correct
+     * @since 5.1
+     */
+    <T> @NonNull PlayerAdapter<T> getPlayerAdapter(@NonNull Class<T> playerClass);
+
+    /**
      * Gets the {@link Platform}, which represents the server platform the
      * plugin is running on.
      *
@@ -173,6 +202,14 @@ public interface LuckPerms {
     @NonNull NodeBuilderRegistry getNodeBuilderRegistry();
 
     /**
+     * Gets the {@link QueryOptionsRegistry}.
+     *
+     * @return the query options registry
+     * @since 5.1
+     */
+    @NonNull QueryOptionsRegistry getQueryOptionsRegistry();
+
+    /**
      * Gets the {@link MetaStackFactory}.
      *
      * <p>The metastack factory provides methods for retrieving
@@ -182,6 +219,14 @@ public interface LuckPerms {
      * @return the meta stack factory
      */
     @NonNull MetaStackFactory getMetaStackFactory();
+
+    /**
+     * Gets the {@link NodeMatcherFactory}.
+     *
+     * @return the node matcher factory
+     * @since 5.1
+     */
+    @NonNull NodeMatcherFactory getNodeMatcherFactory();
 
     /**
      * Schedules the execution of an update task, and returns an encapsulation

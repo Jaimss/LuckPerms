@@ -245,7 +245,7 @@ public abstract class AbstractConfigurateStorage implements StorageImplementatio
                 data.getNode("name").setValue(user.getUsername().orElse("null"));
                 data.getNode(this.loader instanceof JsonLoader ? "primaryGroup" : "primary-group").setValue(user.getPrimaryGroup().getStoredValue().orElse(GroupManager.DEFAULT_GROUP_NAME));
 
-                writeNodes(data, user.normalData().immutable().values());
+                writeNodes(data, user.normalData().asList());
                 saveFile(StorageLocation.USER, user.getUniqueId().toString(), data);
             }
         } catch (Exception e) {
@@ -270,7 +270,7 @@ public abstract class AbstractConfigurateStorage implements StorageImplementatio
                     data.getNode("name").setValue(group.getName());
                 }
 
-                writeNodes(data, group.normalData().immutable().values());
+                writeNodes(data, group.normalData().asList());
                 saveFile(StorageLocation.GROUP, name, data);
             }
         } catch (Exception e) {
@@ -321,7 +321,7 @@ public abstract class AbstractConfigurateStorage implements StorageImplementatio
                 data.getNode("name").setValue(group.getName());
             }
 
-            writeNodes(data, group.normalData().immutable().values());
+            writeNodes(data, group.normalData().asList());
             saveFile(StorageLocation.GROUP, group.getName(), data);
         } catch (Exception e) {
             throw reportException(group.getName(), e);
@@ -474,13 +474,11 @@ public abstract class AbstractConfigurateStorage implements StorageImplementatio
     }
 
     private static Node readMetaAttributes(ConfigurationNode attributes, Function<ConfigurationNode, NodeBuilder<?, ?>> permissionFunction) {
-        boolean value = attributes.getNode("value").getBoolean(true);
         long expiryVal = attributes.getNode("expiry").getLong(0L);
         Instant expiry = expiryVal == 0L ? null : Instant.ofEpochSecond(expiryVal);
         ImmutableContextSet context = readContexts(attributes);
 
         return permissionFunction.apply(attributes)
-                .value(value)
                 .expiry(expiry)
                 .context(context)
                 .build();
@@ -639,13 +637,12 @@ public abstract class AbstractConfigurateStorage implements StorageImplementatio
     }
 
     private void appendNode(ConfigurationNode base, String key, ConfigurationNode attributes, String keyFieldName) {
+        ConfigurationNode appended = base.getAppendedNode();
         if (this.loader instanceof YamlLoader) {
             // create a map node with a single entry of key --> attributes
-            ConfigurationNode appended = base.getAppendedNode();
             appended.getNode(key).setValue(attributes);
         } else {
             // include the attributes and key in the same map
-            ConfigurationNode appended = base.getAppendedNode();
             appended.getNode(keyFieldName).setValue(key);
             appended.mergeValuesFrom(attributes);
         }

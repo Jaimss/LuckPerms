@@ -10,8 +10,8 @@ repositories {
 dependencies {
     compile project(':common')
 
-    compileOnly 'com.destroystokyo.paper:paper-api:1.15.1-R0.1-SNAPSHOT'
-    compileOnly 'net.kyori:text-adapter-bukkit:3.0.2'
+    compileOnly 'com.destroystokyo.paper:paper-api:1.15.2-R0.1-SNAPSHOT'
+    compileOnly 'net.kyori:text-adapter-bukkit:3.0.5'
     compileOnly 'me.lucko:commodore:1.7'
     compileOnly('net.milkbowl.vault:VaultAPI:1.6') {
         exclude(module: 'bukkit')
@@ -55,6 +55,7 @@ shadowJar {
     relocate 'com.github.benmanes.caffeine', 'me.lucko.luckperms.lib.caffeine'
     relocate 'okio', 'me.lucko.luckperms.lib.okio'
     relocate 'okhttp3', 'me.lucko.luckperms.lib.okhttp3'
+    relocate 'net.bytebuddy', 'me.lucko.luckperms.lib.bytebuddy'
     relocate 'me.lucko.commodore', 'me.lucko.luckperms.lib.commodore'
     relocate 'org.mariadb.jdbc', 'me.lucko.luckperms.lib.mariadb'
     relocate 'com.mysql', 'me.lucko.luckperms.lib.mysql'

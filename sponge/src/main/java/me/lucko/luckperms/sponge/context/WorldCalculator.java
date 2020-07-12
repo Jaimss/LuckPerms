@@ -26,6 +26,7 @@
 package me.lucko.luckperms.sponge.context;
 
 import me.lucko.luckperms.common.config.ConfigKeys;
+import me.lucko.luckperms.common.context.contextset.ImmutableContextSetImpl;
 import me.lucko.luckperms.sponge.LPSpongePlugin;
 
 import net.luckperms.api.context.ContextCalculator;
@@ -37,7 +38,11 @@ import net.luckperms.api.context.ImmutableContextSet;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.spongepowered.api.Game;
 import org.spongepowered.api.command.CommandSource;
+import org.spongepowered.api.entity.Entity;
 import org.spongepowered.api.entity.living.player.Player;
+import org.spongepowered.api.event.Listener;
+import org.spongepowered.api.event.Order;
+import org.spongepowered.api.event.entity.MoveEntityEvent;
 import org.spongepowered.api.service.permission.Subject;
 import org.spongepowered.api.world.World;
 
@@ -73,14 +78,29 @@ public class WorldCalculator implements ContextCalculator<Subject> {
     public ContextSet estimatePotentialContexts() {
         Game game = this.plugin.getBootstrap().getGame();
         if (!game.isServerAvailable()) {
-            return ImmutableContextSet.empty();
+            return ImmutableContextSetImpl.EMPTY;
         }
 
         Collection<World> worlds = game.getServer().getWorlds();
-        ImmutableContextSet.Builder builder = ImmutableContextSet.builder();
+        ImmutableContextSet.Builder builder = new ImmutableContextSetImpl.BuilderImpl();
         for (World world : worlds) {
             builder.add(DefaultContextKeys.WORLD_KEY, world.getName().toLowerCase());
         }
         return builder.build();
+    }
+
+    @Listener(order = Order.LAST)
+    public void onWorldChange(MoveEntityEvent.Teleport e) {
+        Entity targetEntity = e.getTargetEntity();
+        if (!(targetEntity instanceof Player)) {
+            return;
+        }
+
+        if (e.getFromTransform().getExtent().equals(e.getToTransform().getExtent())) {
+            return;
+        }
+
+        Player player = (Player) targetEntity;
+        this.plugin.getContextManager().signalContextUpdate(player);
     }
 }

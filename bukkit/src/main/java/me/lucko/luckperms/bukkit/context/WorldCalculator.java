@@ -27,7 +27,9 @@ package me.lucko.luckperms.bukkit.context;
 
 import me.lucko.luckperms.bukkit.LPBukkitPlugin;
 import me.lucko.luckperms.common.config.ConfigKeys;
+import me.lucko.luckperms.common.context.contextset.ImmutableContextSetImpl;
 
+import net.luckperms.api.context.Context;
 import net.luckperms.api.context.ContextCalculator;
 import net.luckperms.api.context.ContextConsumer;
 import net.luckperms.api.context.ContextSet;
@@ -36,13 +38,17 @@ import net.luckperms.api.context.ImmutableContextSet;
 
 import org.bukkit.World;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class WorldCalculator implements ContextCalculator<Player> {
+public class WorldCalculator implements ContextCalculator<Player>, Listener {
     private final LPBukkitPlugin plugin;
 
     public WorldCalculator(LPBukkitPlugin plugin) {
@@ -53,7 +59,9 @@ public class WorldCalculator implements ContextCalculator<Player> {
     public void calculate(@NonNull Player subject, @NonNull ContextConsumer consumer) {
         Set<String> seen = new HashSet<>();
         String world = subject.getWorld().getName().toLowerCase();
-        while (seen.add(world)) {
+        // seems like world names can sometimes be the empty string
+        // see: https://github.com/lucko/LuckPerms/issues/2119
+        while (Context.isValidValue(world) && seen.add(world)) {
             consumer.accept(DefaultContextKeys.WORLD_KEY, world);
             world = this.plugin.getConfiguration().get(ConfigKeys.WORLD_REWRITES).getOrDefault(world, world).toLowerCase();
         }
@@ -62,13 +70,18 @@ public class WorldCalculator implements ContextCalculator<Player> {
     @Override
     public ContextSet estimatePotentialContexts() {
         List<World> worlds = this.plugin.getBootstrap().getServer().getWorlds();
-        ImmutableContextSet.Builder builder = ImmutableContextSet.builder();
+        ImmutableContextSet.Builder builder = new ImmutableContextSetImpl.BuilderImpl();
         for (World world : worlds) {
             String name = world.getName().toLowerCase();
-            if (!name.trim().isEmpty()) {
+            if (Context.isValidValue(name)) {
                 builder.add(DefaultContextKeys.WORLD_KEY, name);
             }
         }
         return builder.build();
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onWorldChange(PlayerChangedWorldEvent e) {
+        this.plugin.getContextManager().signalContextUpdate(e.getPlayer());
     }
 }

@@ -28,6 +28,8 @@ package me.lucko.luckperms.bungee.context;
 import com.imaginarycode.minecraft.redisbungee.RedisBungee;
 import com.imaginarycode.minecraft.redisbungee.RedisBungeeAPI;
 
+import me.lucko.luckperms.common.context.contextset.ImmutableContextSetImpl;
+
 import net.luckperms.api.context.ContextConsumer;
 import net.luckperms.api.context.ContextSet;
 import net.luckperms.api.context.ImmutableContextSet;
@@ -50,10 +52,10 @@ public class RedisBungeeCalculator implements StaticContextCalculator {
     public ContextSet estimatePotentialContexts() {
         RedisBungeeAPI redisBungee = RedisBungee.getApi();
         if (redisBungee == null) {
-            return ImmutableContextSet.empty();
+            return ImmutableContextSetImpl.EMPTY;
         }
 
-        ImmutableContextSet.Builder builder = ImmutableContextSet.builder();
+        ImmutableContextSet.Builder builder = new ImmutableContextSetImpl.BuilderImpl();
         for (String server : redisBungee.getAllServers()) {
             builder.add(PROXY_KEY, server);
         }

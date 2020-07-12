@@ -36,6 +36,7 @@ import me.lucko.luckperms.common.model.PermissionHolder;
 import me.lucko.luckperms.common.node.types.Meta;
 import me.lucko.luckperms.common.node.types.Prefix;
 import me.lucko.luckperms.common.node.types.Suffix;
+import me.lucko.luckperms.common.query.QueryOptionsImpl;
 import me.lucko.luckperms.common.verbose.event.MetaCheckEvent;
 
 import net.luckperms.api.context.DefaultContextKeys;
@@ -237,8 +238,7 @@ public class LuckPermsVaultChat extends AbstractVaultChat {
         }
 
         // find the max inherited priority & add 10
-        MetaAccumulator metaAccumulator = holder.accumulateMeta(null, createQueryOptionsForWorldSet(world));
-        metaAccumulator.complete();
+        MetaAccumulator metaAccumulator = holder.accumulateMeta(createQueryOptionsForWorldSet(world));
         int priority = metaAccumulator.getChatMeta(type).keySet().stream().mapToInt(e -> e).max().orElse(0) + 10;
 
         Node node = type.builder(value, priority)
@@ -278,7 +278,7 @@ public class LuckPermsVaultChat extends AbstractVaultChat {
         }
         context.add(DefaultContextKeys.SERVER_KEY, this.vaultPermission.getVaultServer());
 
-        QueryOptions.Builder builder = QueryOptions.defaultContextualOptions().toBuilder();
+        QueryOptions.Builder builder = QueryOptionsImpl.DEFAULT_CONTEXTUAL.toBuilder();
         builder.context(context.build());
         builder.flag(Flag.INCLUDE_NODES_WITHOUT_SERVER_CONTEXT, this.vaultPermission.isIncludeGlobal());
         return builder.build();

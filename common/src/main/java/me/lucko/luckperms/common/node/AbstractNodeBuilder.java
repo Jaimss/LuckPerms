@@ -28,7 +28,6 @@ package me.lucko.luckperms.common.node;
 import me.lucko.luckperms.common.context.contextset.ImmutableContextSetImpl;
 
 import net.luckperms.api.context.ContextSet;
-import net.luckperms.api.context.DefaultContextKeys;
 import net.luckperms.api.context.ImmutableContextSet;
 import net.luckperms.api.node.NodeBuilder;
 import net.luckperms.api.node.ScopedNode;
@@ -42,8 +41,8 @@ import java.time.temporal.ChronoField;
 import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAmount;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -54,18 +53,15 @@ public abstract class AbstractNodeBuilder<N extends ScopedNode<N, B>, B extends 
     protected ImmutableContextSet.Builder context;
     protected final Map<NodeMetadataKey<?>, Object> metadata;
 
-    protected AbstractNodeBuilder() {
-        this.value = true;
-        this.expireAt = 0L;
-        this.context = new ImmutableContextSetImpl.BuilderImpl();
-        this.metadata = new IdentityHashMap<>();
-    }
-
     protected AbstractNodeBuilder(boolean value, long expireAt, ImmutableContextSet context, Map<NodeMetadataKey<?>, Object> metadata) {
         this.value = value;
         this.expireAt = expireAt;
         this.context = new ImmutableContextSetImpl.BuilderImpl().addAll(context);
         this.metadata = new HashMap<>(metadata);
+    }
+
+    protected AbstractNodeBuilder() {
+        this(true, 0L, ImmutableContextSetImpl.EMPTY, Collections.emptyMap());
     }
 
     @Override
@@ -121,10 +117,6 @@ public abstract class AbstractNodeBuilder<N extends ScopedNode<N, B>, B extends 
 
     @Override
     public @NonNull B withContext(@NonNull String key, @NonNull String value) {
-        // TODO reconsider a better place to insert / avoid this special case
-        if ((key.equalsIgnoreCase(DefaultContextKeys.SERVER_KEY) || key.equalsIgnoreCase(DefaultContextKeys.WORLD_KEY)) && value.equalsIgnoreCase("global")) {
-            return (B) this;
-        }
         this.context.add(key, value);
         return (B) this;
     }

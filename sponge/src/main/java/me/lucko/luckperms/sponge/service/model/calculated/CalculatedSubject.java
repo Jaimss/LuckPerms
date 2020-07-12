@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableList;
 
 import me.lucko.luckperms.common.cacheddata.type.MetaAccumulator;
 import me.lucko.luckperms.common.graph.TraversalAlgorithm;
+import me.lucko.luckperms.common.query.QueryOptionsImpl;
 import me.lucko.luckperms.common.verbose.event.MetaCheckEvent;
 import me.lucko.luckperms.common.verbose.event.PermissionCheckEvent;
 import me.lucko.luckperms.sponge.LPSpongePlugin;
@@ -60,7 +61,10 @@ public abstract class CalculatedSubject implements LPSubject {
         return this.plugin.getService().getDefaultSubjects().getTypeDefaults(getParentCollection().getIdentifier());
     }
 
+    @Override
     public abstract CalculatedSubjectData getSubjectData();
+
+    @Override
     public abstract CalculatedSubjectData getTransientSubjectData();
 
     public Map<String, Boolean> getCombinedPermissions(QueryOptions filter) {
@@ -85,18 +89,15 @@ public abstract class CalculatedSubject implements LPSubject {
         return permissions;
     }
 
-    public Map<String, Boolean> resolveAllPermissions(QueryOptions filter) {
+    public void resolveAllPermissions(Map<String, Boolean> accumulator, QueryOptions filter) {
         SubjectInheritanceGraph graph = new SubjectInheritanceGraph(filter);
-        Map<String, Boolean> result = new HashMap<>();
 
         Iterable<CalculatedSubject> traversal = graph.traverse(TraversalAlgorithm.DEPTH_FIRST_PRE_ORDER, this);
         for (CalculatedSubject subject : traversal) {
             for (Map.Entry<String, Boolean> entry : subject.getCombinedPermissions(filter).entrySet()) {
-                result.putIfAbsent(entry.getKey(), entry.getValue());
+                accumulator.putIfAbsent(entry.getKey(), entry.getValue());
             }
         }
-
-        return result;
     }
 
     public Set<LPSubjectReference> getCombinedParents(QueryOptions filter) {
@@ -175,6 +176,7 @@ public abstract class CalculatedSubject implements LPSubject {
                 accumulator.accumulateMeta(entry.getKey(), entry.getValue());
             }
         }
+        accumulator.complete();
     }
 
     @Override
@@ -184,22 +186,22 @@ public abstract class CalculatedSubject implements LPSubject {
 
     @Override
     public Tristate getPermissionValue(ImmutableContextSet contexts, String permission) {
-        return getPermissionValue(QueryOptions.defaultContextualOptions().toBuilder().context(contexts).build(), permission);
+        return getPermissionValue(QueryOptionsImpl.DEFAULT_CONTEXTUAL.toBuilder().context(contexts).build(), permission);
     }
 
     @Override
     public boolean isChildOf(ImmutableContextSet contexts, LPSubjectReference parent) {
-        return resolveAllParents(QueryOptions.defaultContextualOptions().toBuilder().context(contexts).build()).contains(parent);
+        return resolveAllParents(QueryOptionsImpl.DEFAULT_CONTEXTUAL.toBuilder().context(contexts).build()).contains(parent);
     }
 
     @Override
     public ImmutableList<LPSubjectReference> getParents(ImmutableContextSet contexts) {
-        return ImmutableList.copyOf(resolveAllParents(QueryOptions.defaultContextualOptions().toBuilder().context(contexts).build()));
+        return ImmutableList.copyOf(resolveAllParents(QueryOptionsImpl.DEFAULT_CONTEXTUAL.toBuilder().context(contexts).build()));
     }
 
     @Override
     public Optional<String> getOption(ImmutableContextSet contexts, String key) {
-        return Optional.ofNullable(this.cachedData.getMetaData(QueryOptions.defaultContextualOptions().toBuilder().context(contexts).build()).getMetaValue(key, MetaCheckEvent.Origin.PLATFORM_API));
+        return Optional.ofNullable(this.cachedData.getMetaData(QueryOptionsImpl.DEFAULT_CONTEXTUAL.toBuilder().context(contexts).build()).getMetaValue(key, MetaCheckEvent.Origin.PLATFORM_API));
     }
 
     @Override

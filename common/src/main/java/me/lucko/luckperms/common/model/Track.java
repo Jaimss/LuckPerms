@@ -68,7 +68,7 @@ public final class Track {
      */
     private final List<String> groups = Collections.synchronizedList(new ArrayList<>());
 
-    private final ApiTrack apiDelegate = new ApiTrack(this);
+    private final ApiTrack apiProxy = new ApiTrack(this);
 
     public Track(String name, LuckPermsPlugin plugin) {
         this.name = name;
@@ -83,8 +83,8 @@ public final class Track {
         return this.ioLock;
     }
 
-    public ApiTrack getApiDelegate() {
-        return this.apiDelegate;
+    public ApiTrack getApiProxy() {
+        return this.apiProxy;
     }
 
     /**
@@ -275,7 +275,7 @@ public final class Track {
         }
 
         // find all groups that are inherited by the user in the exact contexts given and applicable to this track
-        List<InheritanceNode> nodes = user.normalData().immutableInheritance().get(context.immutableCopy()).stream()
+        List<InheritanceNode> nodes = user.normalData().inheritanceNodesInContext(context).stream()
                 .filter(Node::getValue)
                 .filter(node -> containsGroup(node.getGroupName()))
                 .distinct()
@@ -340,7 +340,7 @@ public final class Track {
         }
 
         // find all groups that are inherited by the user in the exact contexts given and applicable to this track
-        List<InheritanceNode> nodes = user.normalData().immutableInheritance().get(context.immutableCopy()).stream()
+        List<InheritanceNode> nodes = user.normalData().inheritanceNodesInContext(context).stream()
                 .filter(Node::getValue)
                 .filter(node -> containsGroup(node.getGroupName()))
                 .distinct()

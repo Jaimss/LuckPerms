@@ -30,6 +30,7 @@ import com.google.common.base.Strings;
 import me.lucko.luckperms.common.command.CommandResult;
 import me.lucko.luckperms.common.command.abstraction.ChildCommand;
 import me.lucko.luckperms.common.command.access.CommandPermission;
+import me.lucko.luckperms.common.command.utils.ArgumentList;
 import me.lucko.luckperms.common.commands.migration.MigrationUtils;
 import me.lucko.luckperms.common.locale.LocaleManager;
 import me.lucko.luckperms.common.locale.command.CommandSpec;
@@ -52,19 +53,24 @@ import me.lucko.luckperms.common.util.ProgressLogger;
 import net.luckperms.api.context.DefaultContextKeys;
 import net.luckperms.api.event.cause.CreationCause;
 import net.luckperms.api.model.data.DataType;
+import net.luckperms.api.node.Node;
+import net.luckperms.api.node.types.InheritanceNode;
 
 import org.bukkit.Bukkit;
 
+import ru.tehkode.permissions.NativeInterface;
 import ru.tehkode.permissions.PermissionEntity;
 import ru.tehkode.permissions.PermissionGroup;
 import ru.tehkode.permissions.PermissionManager;
 import ru.tehkode.permissions.PermissionUser;
 import ru.tehkode.permissions.PermissionsData;
 import ru.tehkode.permissions.bukkit.PermissionsEx;
+import ru.tehkode.permissions.events.PermissionEvent;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -78,6 +84,7 @@ public class MigrationPermissionsEx extends ChildCommand<Object> {
     private static final Method GET_DATA_METHOD;
     private static final Field TIMED_PERMISSIONS_FIELD;
     private static final Field TIMED_PERMISSIONS_TIME_FIELD;
+    private static final Field NATIVE_INTERFACE_FIELD;
     static {
         try {
             GET_DATA_METHOD = PermissionEntity.class.getDeclaredMethod("getData");
@@ -88,6 +95,9 @@ public class MigrationPermissionsEx extends ChildCommand<Object> {
 
             TIMED_PERMISSIONS_TIME_FIELD = PermissionEntity.class.getDeclaredField("timedPermissionsTime");
             TIMED_PERMISSIONS_TIME_FIELD.setAccessible(true);
+
+            NATIVE_INTERFACE_FIELD = PermissionManager.class.getDeclaredField("nativeI");
+            NATIVE_INTERFACE_FIELD.setAccessible(true);
         } catch (NoSuchMethodException | NoSuchFieldException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -98,7 +108,7 @@ public class MigrationPermissionsEx extends ChildCommand<Object> {
     }
 
     @Override
-    public CommandResult execute(LuckPermsPlugin plugin, Sender sender, Object o, List<String> args, String label) {
+    public CommandResult execute(LuckPermsPlugin plugin, Sender sender, Object ignored, ArgumentList args, String label) {
         ProgressLogger log = new ProgressLogger(Message.MIGRATION_LOG, Message.MIGRATION_LOG_PROGRESS, "PermissionsEx");
         log.addListener(plugin.getConsoleSender());
         log.addListener(sender);
@@ -112,6 +122,13 @@ public class MigrationPermissionsEx extends ChildCommand<Object> {
 
         PermissionsEx pex = (PermissionsEx) Bukkit.getPluginManager().getPlugin("PermissionsEx");
         PermissionManager manager = pex.getPermissionsManager();
+
+        // hack to work around accessing pex async
+        try {
+            disablePexEvents(manager);
+        } catch (ReflectiveOperationException e) {
+            e.printStackTrace();
+        }
 
         log.log("Calculating group weightings.");
         int i = 0;
@@ -168,8 +185,14 @@ public class MigrationPermissionsEx extends ChildCommand<Object> {
         // Increment the max weight from the group migrations. All user meta should override.
         int userWeight = maxWeight + 5;
 
-        Iterators.tryIterate(manager.getUsers(), user -> {
-            UUID u = BukkitUuids.lookupUuid(log, user.getIdentifier());
+        Collection<String> userIdentifiers = manager.getBackend().getUserIdentifiers();
+        Iterators.tryIterate(userIdentifiers, id -> {
+            PermissionUser user = new PermissionUser(id, manager.getBackend().getUserData(id), manager);
+            if (isUserEmpty(user)) {
+                return;
+            }
+
+            UUID u = BukkitUuids.lookupUuid(log, id);
             if (u == null) {
                 return;
             }
@@ -185,6 +208,13 @@ public class MigrationPermissionsEx extends ChildCommand<Object> {
             log.logProgress("Migrated {} users so far.", userCount.incrementAndGet(), ProgressLogger.DEFAULT_NOTIFY_FREQUENCY);
         });
 
+        // re-enable events
+        try {
+            enablePexEvents(manager);
+        } catch (ReflectiveOperationException e) {
+            e.printStackTrace();
+        }
+
         log.log("Migrated " + userCount.get() + " users.");
         log.log("Success! Migration complete.");
         log.log("Don't forget to remove the PermissionsEx jar from your plugins folder & restart the server. " +
@@ -199,6 +229,28 @@ public class MigrationPermissionsEx extends ChildCommand<Object> {
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private static boolean isUserEmpty(PermissionUser user) {
+        for (List<String> permissions : user.getAllPermissions().values()) {
+            if (!permissions.isEmpty()) {
+                return false;
+            }
+        }
+
+        for (List<PermissionGroup> parents : user.getAllParents().values()) {
+            if (!parents.isEmpty()) {
+                return false;
+            }
+        }
+
+        for (Map<String, String> options : user.getAllOptions().values()) {
+            if (!options.isEmpty()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static void migrateEntity(PermissionEntity entity, PermissionHolder holder, int weight) {
@@ -229,7 +281,10 @@ public class MigrationPermissionsEx extends ChildCommand<Object> {
             for (String node : worldData.getValue()) {
                 if (node.isEmpty()) continue;
                 long expiry = timedPermissionsTime.getOrDefault(Strings.nullToEmpty(world) + ":" + node, 0L);
-                holder.setNode(DataType.NORMAL, MigrationUtils.parseNode(node, true).withContext(DefaultContextKeys.WORLD_KEY, world).expiry(expiry).build(), true);
+                Node n = MigrationUtils.parseNode(node, true).withContext(DefaultContextKeys.WORLD_KEY, world).expiry(expiry).build();
+                if (!n.hasExpired()) {
+                    holder.setNode(DataType.NORMAL, n, true);
+                }
             }
         }
 
@@ -257,10 +312,15 @@ public class MigrationPermissionsEx extends ChildCommand<Object> {
                     }
                 }
 
-                holder.setNode(DataType.NORMAL, Inheritance.builder(MigrationUtils.standardizeName(parentName)).withContext(DefaultContextKeys.WORLD_KEY, world).expiry(expiry).build(), true);
+                InheritanceNode n = Inheritance.builder(MigrationUtils.standardizeName(parentName)).withContext(DefaultContextKeys.WORLD_KEY, world).expiry(expiry).build();
+                if (n.hasExpired()) {
+                    continue;
+                }
+
+                holder.setNode(DataType.NORMAL, n, true);
 
                 // migrate primary groups
-                if (world == null && holder instanceof User && expiry == 0) {
+                if (world.equals("global") && holder instanceof User && expiry == 0) {
                     if (parent.getRank() < primaryWeight) {
                         primary = parent.getName();
                         primaryWeight = parent.getRank();
@@ -319,5 +379,41 @@ public class MigrationPermissionsEx extends ChildCommand<Object> {
             world = "global";
         }
         return world.toLowerCase();
+    }
+
+    /*
+     * Hack to workaround issue with accessing PEX async.
+     * See: https://github.com/lucko/LuckPerms/issues/2102
+     */
+
+    private static void disablePexEvents(PermissionManager manager) throws ReflectiveOperationException {
+        NativeInterface nativeInterface = (NativeInterface) NATIVE_INTERFACE_FIELD.get(manager);
+        NATIVE_INTERFACE_FIELD.set(manager, new DisabledEventsNativeInterface(nativeInterface));
+    }
+
+    private static void enablePexEvents(PermissionManager manager) throws ReflectiveOperationException {
+        NativeInterface nativeInterface = (NativeInterface) NATIVE_INTERFACE_FIELD.get(manager);
+        while (nativeInterface instanceof DisabledEventsNativeInterface) {
+            nativeInterface = ((DisabledEventsNativeInterface) nativeInterface).delegate;
+            NATIVE_INTERFACE_FIELD.set(manager, nativeInterface);
+        }
+    }
+
+    private static final class DisabledEventsNativeInterface implements NativeInterface {
+        private final NativeInterface delegate;
+
+        private DisabledEventsNativeInterface(NativeInterface delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void callEvent(PermissionEvent permissionEvent) {
+            // do nothing!
+        }
+
+        @Override public String UUIDToName(UUID uuid) { return this.delegate.UUIDToName(uuid); }
+        @Override public UUID nameToUUID(String s) { return this.delegate.nameToUUID(s); }
+        @Override public boolean isOnline(UUID uuid) { return this.delegate.isOnline(uuid); }
+        @Override public UUID getServerUUID() { return this.delegate.getServerUUID(); }
     }
 }

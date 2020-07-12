@@ -28,19 +28,17 @@ package me.lucko.luckperms.common.plugin;
 import me.lucko.luckperms.common.actionlog.LogDispatcher;
 import me.lucko.luckperms.common.api.ApiRegistrationUtil;
 import me.lucko.luckperms.common.api.LuckPermsApiProvider;
-import me.lucko.luckperms.common.api.MinimalApiProvider;
 import me.lucko.luckperms.common.calculator.CalculatorFactory;
-import me.lucko.luckperms.common.config.AbstractConfiguration;
 import me.lucko.luckperms.common.config.ConfigKeys;
 import me.lucko.luckperms.common.config.LuckPermsConfiguration;
-import me.lucko.luckperms.common.config.adapter.ConfigurationAdapter;
+import me.lucko.luckperms.common.config.generic.adapter.ConfigurationAdapter;
 import me.lucko.luckperms.common.context.LPStaticContextsCalculator;
 import me.lucko.luckperms.common.dependencies.Dependency;
 import me.lucko.luckperms.common.dependencies.DependencyManager;
 import me.lucko.luckperms.common.event.AbstractEventBus;
 import me.lucko.luckperms.common.event.EventDispatcher;
 import me.lucko.luckperms.common.extension.SimpleExtensionManager;
-import me.lucko.luckperms.common.inheritance.InheritanceHandler;
+import me.lucko.luckperms.common.inheritance.InheritanceGraphFactory;
 import me.lucko.luckperms.common.locale.LocaleManager;
 import me.lucko.luckperms.common.locale.message.Message;
 import me.lucko.luckperms.common.messaging.InternalMessagingService;
@@ -60,9 +58,10 @@ import net.luckperms.api.LuckPerms;
 
 import okhttp3.OkHttpClient;
 
-import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.Month;
 import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
@@ -84,7 +83,7 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
     private Storage storage;
     private InternalMessagingService messagingService = null;
     private SyncTask.Buffer syncTaskBuffer;
-    private InheritanceHandler inheritanceHandler;
+    private InheritanceGraphFactory inheritanceGraphFactory;
     private CalculatorFactory calculatorFactory;
     private LuckPermsApiProvider apiProvider;
     private EventDispatcher eventDispatcher;
@@ -106,9 +105,6 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
         // send the startup banner
         displayBanner(getConsoleSender());
 
-        // minimal api
-        ApiRegistrationUtil.registerProvider(MinimalApiProvider.INSTANCE);
-
         // load some utilities early
         this.verboseHandler = new VerboseHandler(getBootstrap().getScheduler());
         this.permissionRegistry = new PermissionRegistry(getBootstrap().getScheduler());
@@ -116,7 +112,7 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
 
         // load configuration
         getLogger().info("Loading configuration...");
-        this.configuration = new AbstractConfiguration(this, provideConfigurationAdapter());
+        this.configuration = new LuckPermsConfiguration(this, provideConfigurationAdapter());
 
         // load locale
         this.localeManager = new LocaleManager();
@@ -138,7 +134,10 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
         if (getConfiguration().get(ConfigKeys.WATCH_FILES)) {
             try {
                 this.fileWatcher = new FileWatcher(this, getBootstrap().getDataDirectory());
-            } catch (IOException e) {
+            } catch (Throwable e) {
+                // catch throwable here, seems some JVMs throw UnsatisfiedLinkError when trying
+                // to create a watch service. see: https://github.com/lucko/LuckPerms/issues/2066
+                getLogger().warn("Error occurred whilst trying to create a file watcher:");
                 e.printStackTrace();
             }
         }
@@ -155,7 +154,7 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
 
         // load internal managers
         getLogger().info("Loading internal permission managers...");
-        this.inheritanceHandler = new InheritanceHandler(this);
+        this.inheritanceGraphFactory = new InheritanceGraphFactory(this);
 
         // setup user/group/track manager
         setupManagers();
@@ -252,6 +251,7 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
                 Dependency.CAFFEINE,
                 Dependency.OKIO,
                 Dependency.OKHTTP,
+                Dependency.BYTEBUDDY,
                 Dependency.EVENT
         );
     }
@@ -340,8 +340,8 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
     }
 
     @Override
-    public InheritanceHandler getInheritanceHandler() {
-        return this.inheritanceHandler;
+    public InheritanceGraphFactory getInheritanceGraphFactory() {
+        return this.inheritanceGraphFactory;
     }
 
     @Override
@@ -366,8 +366,16 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
 
     private void displayBanner(Sender sender) {
         sender.sendMessage(Message.colorize("&b       &3 __    "));
-        sender.sendMessage(Message.colorize("&b  |    &3|__)   " + "&2LuckPerms &bv" + getBootstrap().getVersion()));
+        sender.sendMessage(Message.colorize("&b  |    &3|__)   " + "&2" + getPluginName() + " &bv" + getBootstrap().getVersion()));
         sender.sendMessage(Message.colorize("&b  |___ &3|      " + "&8Running on " + getBootstrap().getType().getFriendlyName() + " - " + getBootstrap().getServerBrand()));
         sender.sendMessage("");
+    }
+
+    public static String getPluginName() {
+        LocalDate date = LocalDate.now();
+        if (date.getMonth() == Month.APRIL && date.getDayOfMonth() == 1) {
+            return "LuckyPerms";
+        }
+        return "LuckPerms";
     }
 }

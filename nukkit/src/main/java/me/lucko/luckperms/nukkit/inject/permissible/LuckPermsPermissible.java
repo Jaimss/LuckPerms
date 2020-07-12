@@ -26,12 +26,12 @@
 package me.lucko.luckperms.nukkit.inject.permissible;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import me.lucko.luckperms.common.calculator.result.TristateResult;
 import me.lucko.luckperms.common.config.ConfigKeys;
 import me.lucko.luckperms.common.context.QueryOptionsCache;
 import me.lucko.luckperms.common.model.User;
-import me.lucko.luckperms.common.util.ImmutableCollectors;
 import me.lucko.luckperms.common.verbose.event.PermissionCheckEvent;
 import me.lucko.luckperms.nukkit.LPNukkitPlugin;
 import me.lucko.luckperms.nukkit.calculator.DefaultsProcessor;
@@ -215,15 +215,16 @@ public class LuckPermsPermissible extends PermissibleBase {
 
     @Override
     public Map<String, PermissionAttachmentInfo> getEffectivePermissions() {
-        return this.user.getCachedData().getPermissionData(this.queryOptionsSupplier.getQueryOptions()).getPermissionMap().entrySet().stream()
-                .collect(ImmutableCollectors.toMap(Map.Entry::getKey, entry -> new PermissionAttachmentInfo(this.player, entry.getKey(), null, entry.getValue())));
+        Map<String, Boolean> permissionMap = this.user.getCachedData().getPermissionData(this.queryOptionsSupplier.getQueryOptions()).getPermissionMap();
+
+        ImmutableMap.Builder<String, PermissionAttachmentInfo> builder = ImmutableMap.builder();
+        permissionMap.forEach((key, value) -> builder.put(key, new PermissionAttachmentInfo(this.player, key, null, value)));
+        return builder.build();
     }
 
     @Override
     public LuckPermsPermissionAttachment addAttachment(Plugin plugin) {
-        if (plugin == null) {
-            throw new NullPointerException("plugin");
-        }
+        Objects.requireNonNull(plugin, "plugin");
 
         LuckPermsPermissionAttachment attachment = new LuckPermsPermissionAttachment(this, plugin);
         attachment.hook();
@@ -232,12 +233,8 @@ public class LuckPermsPermissible extends PermissibleBase {
 
     @Override
     public PermissionAttachment addAttachment(Plugin plugin, String permission) {
-        if (plugin == null) {
-            throw new NullPointerException("plugin");
-        }
-        if (permission == null) {
-            return addAttachment(plugin);
-        }
+        Objects.requireNonNull(plugin, "plugin");
+        Objects.requireNonNull(permission, "permission");
 
         PermissionAttachment attachment = addAttachment(plugin);
         attachment.setPermission(permission, true);
@@ -246,15 +243,9 @@ public class LuckPermsPermissible extends PermissibleBase {
 
     @Override
     public PermissionAttachment addAttachment(Plugin plugin, String permission, Boolean value) {
-        if (plugin == null) {
-            throw new NullPointerException("plugin");
-        }
-        if (permission == null) {
-            return addAttachment(plugin);
-        }
-        if (value == null) {
-            return addAttachment(plugin, permission);   
-        }
+        Objects.requireNonNull(plugin, "plugin");
+        Objects.requireNonNull(permission, "permission");
+        Objects.requireNonNull(value, "value");
 
         PermissionAttachment attachment = addAttachment(plugin);
         attachment.setPermission(permission, value);
@@ -263,9 +254,7 @@ public class LuckPermsPermissible extends PermissibleBase {
 
     @Override
     public void removeAttachment(PermissionAttachment attachment) {
-        if (attachment == null) {
-            throw new NullPointerException("attachment");
-        }
+        Objects.requireNonNull(attachment, "attachment");
 
         LuckPermsPermissionAttachment luckPermsAttachment;
 
