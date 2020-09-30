@@ -57,10 +57,18 @@ public class ExportCommand extends SingleCommand {
         }
 
         boolean includeUsers = !args.remove("--without-users");
-        boolean saveFile = !args.remove("--upload");
+        boolean includeGroups = !args.remove("--without-groups");
+        boolean upload = args.remove("--upload");
 
         Exporter exporter;
-        if (saveFile) {
+        if (upload) {
+            if (!this.running.compareAndSet(false, true)) {
+                Message.EXPORT_ALREADY_RUNNING.send(sender);
+                return CommandResult.STATE_ERROR;
+            }
+
+            exporter = new Exporter.WebUpload(plugin, sender, includeUsers, includeGroups, label);
+        } else {
             Path dataDirectory = plugin.getBootstrap().getDataDirectory();
             Path path = dataDirectory.resolve(args.get(0) + ".json.gz");
 
@@ -92,14 +100,7 @@ public class ExportCommand extends SingleCommand {
                 return CommandResult.STATE_ERROR;
             }
 
-            exporter = new Exporter(plugin, sender, path, includeUsers, saveFile);
-        } else {
-            if (!this.running.compareAndSet(false, true)) {
-                Message.EXPORT_ALREADY_RUNNING.send(sender);
-                return CommandResult.STATE_ERROR;
-            }
-
-            exporter = new Exporter(plugin, sender, includeUsers, saveFile, label);
+            exporter = new Exporter.SaveFile(plugin, sender, path, includeUsers, includeGroups);
         }
 
         // Run the exporter in its own thread.

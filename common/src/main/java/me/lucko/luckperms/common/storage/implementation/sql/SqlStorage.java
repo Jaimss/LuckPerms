@@ -87,6 +87,7 @@ public class SqlStorage implements StorageImplementation {
     private static final String PLAYER_SELECT_USERNAME_BY_UUID = "SELECT username FROM '{prefix}players' WHERE uuid=? LIMIT 1";
     private static final String PLAYER_UPDATE_USERNAME_FOR_UUID = "UPDATE '{prefix}players' SET username=? WHERE uuid=?";
     private static final String PLAYER_INSERT = "INSERT INTO '{prefix}players' (uuid, username, primary_group) VALUES(?, ?, ?)";
+    private static final String PLAYER_DELETE = "DELETE FROM '{prefix}players' WHERE uuid=?";
     private static final String PLAYER_SELECT_ALL_UUIDS_BY_USERNAME = "SELECT uuid FROM '{prefix}players' WHERE username=? AND NOT uuid=?";
     private static final String PLAYER_DELETE_ALL_UUIDS_BY_USERNAME = "DELETE FROM '{prefix}players' WHERE username=? AND NOT uuid=?";
     private static final String PLAYER_SELECT_BY_UUID = "SELECT username, primary_group FROM '{prefix}players' WHERE uuid=?";
@@ -689,6 +690,16 @@ public class SqlStorage implements StorageImplementation {
     }
 
     @Override
+    public void deletePlayerData(UUID uniqueId) throws SQLException {
+        try (Connection c = this.connectionFactory.getConnection()) {
+            try (PreparedStatement ps = c.prepareStatement(this.statementProcessor.apply(PLAYER_DELETE))) {
+                ps.setString(1, uniqueId.toString());
+                ps.execute();
+            }
+        }
+    }
+
+    @Override
     public UUID getPlayerUniqueId(String username) throws SQLException {
         username = username.toLowerCase();
         try (Connection c = this.connectionFactory.getConnection()) {
@@ -759,7 +770,7 @@ public class SqlStorage implements StorageImplementation {
         ps.setString(4, nd.getServer());
         ps.setString(5, nd.getWorld());
         ps.setLong(6, nd.getExpiry());
-        ps.setString(7, GsonProvider.normal().toJson(ContextSetJsonSerializer.serializeContextSet(nd.getContexts())));
+        ps.setString(7, GsonProvider.normal().toJson(ContextSetJsonSerializer.serialize(nd.getContexts())));
     }
 
     private static Set<SqlNode> getMissingFromRemote(Set<SqlNode> local, Set<SqlNode> remote) {

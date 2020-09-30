@@ -32,12 +32,14 @@ import me.lucko.luckperms.common.calculator.CalculatorFactory;
 import me.lucko.luckperms.common.config.ConfigKeys;
 import me.lucko.luckperms.common.config.LuckPermsConfiguration;
 import me.lucko.luckperms.common.config.generic.adapter.ConfigurationAdapter;
-import me.lucko.luckperms.common.context.LPStaticContextsCalculator;
+import me.lucko.luckperms.common.context.ConfigurationContextCalculator;
 import me.lucko.luckperms.common.dependencies.Dependency;
 import me.lucko.luckperms.common.dependencies.DependencyManager;
 import me.lucko.luckperms.common.event.AbstractEventBus;
 import me.lucko.luckperms.common.event.EventDispatcher;
+import me.lucko.luckperms.common.event.gen.GeneratedEventClass;
 import me.lucko.luckperms.common.extension.SimpleExtensionManager;
+import me.lucko.luckperms.common.http.BytebinClient;
 import me.lucko.luckperms.common.inheritance.InheritanceGraphFactory;
 import me.lucko.luckperms.common.locale.LocaleManager;
 import me.lucko.luckperms.common.locale.message.Message;
@@ -52,7 +54,6 @@ import me.lucko.luckperms.common.storage.implementation.file.watcher.FileWatcher
 import me.lucko.luckperms.common.tasks.SyncTask;
 import me.lucko.luckperms.common.treeview.PermissionRegistry;
 import me.lucko.luckperms.common.verbose.VerboseHandler;
-import me.lucko.luckperms.common.web.BytebinClient;
 
 import net.luckperms.api.LuckPerms;
 
@@ -119,7 +120,11 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
         this.localeManager.tryLoad(this, getBootstrap().getConfigDirectory().resolve("lang.yml"));
 
         // setup a bytebin instance
-        this.bytebin = new BytebinClient(new OkHttpClient(), getConfiguration().get(ConfigKeys.BYTEBIN_URL), "luckperms");
+        OkHttpClient httpClient = new OkHttpClient.Builder()
+                .callTimeout(15, TimeUnit.SECONDS)
+                .build();
+
+        this.bytebin = new BytebinClient(httpClient, getConfiguration().get(ConfigKeys.BYTEBIN_URL), "luckperms");
 
         // now the configuration is loaded, we can create a storage factory and load initial dependencies
         StorageFactory storageFactory = new StorageFactory(this);
@@ -164,7 +169,7 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
 
         // setup contextmanager & register common calculators
         setupContextManager();
-        getContextManager().registerCalculator(new LPStaticContextsCalculator(getConfiguration()));
+        getContextManager().registerCalculator(new ConfigurationContextCalculator(getConfiguration()));
 
         // setup platform hooks
         setupPlatformHooks();
@@ -172,6 +177,7 @@ public abstract class AbstractLuckPermsPlugin implements LuckPermsPlugin {
         // register with the LP API
         this.apiProvider = new LuckPermsApiProvider(this);
         this.eventDispatcher = new EventDispatcher(provideEventBus(this.apiProvider));
+        getBootstrap().getScheduler().executeAsync(GeneratedEventClass::preGenerate);
         ApiRegistrationUtil.registerProvider(this.apiProvider);
         registerApiOnPlatform(this.apiProvider);
 

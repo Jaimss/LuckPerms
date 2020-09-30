@@ -155,6 +155,11 @@ public final class ConfigKeys {
     public static final ConfigKey<Boolean> UPDATE_CLIENT_COMMAND_LIST = notReloadable(booleanKey("update-client-command-list", true));
 
     /**
+     * If LuckPerms should attempt to register "Brigadier" command list data for its commands.
+     */
+    public static final ConfigKey<Boolean> REGISTER_COMMAND_LIST_DATA = notReloadable(booleanKey("register-command-list-data", true));
+
+    /**
      * If LuckPerms should attempt to resolve Vanilla command target selectors for LP commands.
      */
     public static final ConfigKey<Boolean> RESOLVE_COMMAND_SELECTORS = booleanKey("resolve-command-selectors", false);
@@ -443,7 +448,7 @@ public final class ConfigKeys {
     /**
      * If the vault server option should be used
      */
-    public static final ConfigKey<Boolean> USE_VAULT_SERVER = booleanKey("use-vault-server", true);
+    public static final ConfigKey<Boolean> USE_VAULT_SERVER = booleanKey("use-vault-server", false);
 
     /**
      * The name of the server to use for Vault.

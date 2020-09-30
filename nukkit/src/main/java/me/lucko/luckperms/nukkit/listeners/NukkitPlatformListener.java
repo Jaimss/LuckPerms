@@ -37,30 +37,34 @@ import cn.nukkit.event.player.PlayerCommandPreprocessEvent;
 import cn.nukkit.event.server.RemoteServerCommandEvent;
 import cn.nukkit.event.server.ServerCommandEvent;
 
+import java.util.regex.Pattern;
+
 public class NukkitPlatformListener implements Listener {
+    private static final Pattern OP_COMMAND_PATTERN = Pattern.compile("^/?(\\w+:)?(deop|op)( .*)?$");
+
     private final LPNukkitPlugin plugin;
 
     public NukkitPlatformListener(LPNukkitPlugin plugin) {
         this.plugin = plugin;
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onPlayerCommand(PlayerCommandPreprocessEvent e) {
         handleCommand(e.getPlayer(), e.getMessage().toLowerCase(), e);
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onServerCommand(ServerCommandEvent e) {
         handleCommand(e.getSender(), e.getCommand().toLowerCase(), e);
     }
 
-    @EventHandler
+    @EventHandler(ignoreCancelled = true)
     public void onRemoteServerCommand(RemoteServerCommandEvent e) {
         handleCommand(e.getSender(), e.getCommand().toLowerCase(), e);
     }
 
-    private void handleCommand(CommandSender sender, String s, Cancellable event) {
-        if (s.isEmpty()) {
+    private void handleCommand(CommandSender sender, String cmdLine, Cancellable event) {
+        if (cmdLine.isEmpty()) {
             return;
         }
 
@@ -68,15 +72,7 @@ public class NukkitPlatformListener implements Listener {
             return;
         }
 
-        if (s.charAt(0) == '/') {
-            s = s.substring(1);
-        }
-
-        if (s.contains(":")) {
-            s = s.substring(s.indexOf(':') + 1);
-        }
-
-        if (s.equals("op") || s.startsWith("op ") || s.equals("deop") || s.startsWith("deop ")) {
+        if (OP_COMMAND_PATTERN.matcher(cmdLine).matches()) {
             event.setCancelled(true);
             sender.sendMessage(Message.OP_DISABLED.asString(this.plugin.getLocaleManager()));
         }
